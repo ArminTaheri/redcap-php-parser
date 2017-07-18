@@ -13,48 +13,79 @@
         array("right", 1, "-"),
     );
     class Parser {
+        private $expression;
+        private $tokens;
+        private $offset;
+        private $backtrack;
         function __construct($expression) {
-            $this->$expression = $expression;
-            $this->$tokens = Lexer.lex($expression);
-            $this->$offset = -1;
+            $this->expression = $expression;
+            $this->tokens = Lexer::lex($expression);
+            $this->offset = 0;
+            $this->backtrack = $this->offset;
         }
         function parse() {
-            return $this->parseExpression();
+            $ast = $this->parseBoolTerm();
+            if ($ast === false) {
+                throw new Exception("Cannot parse expression.");
+            }
+            return $ast;
         }
         function next() {
-            $this-$offset += 1;
-            if ($this->$offset > count($this->$tokens)) {
-                throw new Exception("Invalid expression: " . $this->$expression);
+            $this->offset += 1;
+            if ($this->offset > count($this->tokens)) {
+                throw new Exception("Invalid expression ending: " . $this->expression);
             }
         }
+        function setBacktrack() {
+          $this->backtrack = $this->offset;
+        }
+        function backtrack() {
+          $this->offset = $this->backtrack;
+        }
         function expect($token) {
-            $currentTok = $this->$tokens[$this->offset];
+            if ($this->offset >= count($this->tokens)) {
+                return false;
+            }
+            $currentTok = $this->tokens[$this->offset];
             if ($currentTok['token'] !== $token) {
                 return false;
             }
             return $currentTok['match'];
         }
-        function parseExpression() {
-            $left = $this->parseBoolComp();
-            $op = $this->$expect('and') || $this->$expect('or');
-            $this->next();
+        function parseBoolTerm() {
+            $left = $this->parseUnaryBool();
+            $op = $this->expect('and') || $this->expect('or');
             if ($op === false) {
                 return $left;
             }
-            $right = $this->parseExpression();
+            $this->next();
+            $right = $this->parseBoolTerm();
             return array(
                 'type' => 'BinaryOp',
                 'op' => $op,
                 'args' => array($left, $right),
             );
         }
+        function parseUnaryBool() {
+            $op = $this->expect("not");
+            if ($op === false) {
+                return $this->parseBoolComp();
+            }
+            $this->next();
+            $arg = $this->parseBoolComp();
+            return array(
+                'type' => 'UnaryOp',
+                'op' => $op,
+                'args' => array($arg),
+            );
+        }
         function parseBoolComp() {
             $left = $this->parseNumTerm();
-            $filt = array_filter("=", "<", ">", "<>", "<=", ">=", $this->expect);
-            $this->next();
-            if ($filt.length === 0) {
-                return false;
+            $filt = array_filter(["=", "<", ">", "<>", "<=", ">="], array($this, 'expect'));
+            if (count($filt) === 0) {
+                return $left;
             }
+            $this->next();
             $op = $filt[0];
             if ($op === false) {
                 return $left;
@@ -68,11 +99,11 @@
         }
         function parseNumTerm() {
             $left = $this->parseNumFactor();
-            $filt = array_filter("+", "-", $this->expect);
-            $this->next();
-            if ($filt.length === 0) {
-                return false;
+            $filt = array_filter(["+", "-"], array($this, 'expect'));
+            if (count($filt) === 0) {
+                return $left;
             }
+            $this->next();
             $op = $filt[0];
             $right = $this->parseNumTerm();
             return array(
@@ -82,18 +113,92 @@
             );
         }
         function parseNumFactor() {
-            $left = $this->parseNumFactor();
-            $filt = array_filter("+", "-", $this->expect);
-            $this->next();
-            if ($filt.length === 0) {
-                return false;
+            $left = $this->parseNumPower();
+            $filt = array_filter(["*", "/"], array($this, 'expect'));
+            if (count($filt) === 0) {
+                return $left;
             }
+            $this->next();
             $op = $filt[0];
-            $right = $this->parseNumTerm();
+            $right = $this->parseNumFactor();
             return array(
                 'type' => 'BinaryOp',
                 'op' => $op,
                 'args' => array($left, $right),
+            );
+        }
+        function parseNumPower() {
+            $left = $this->parseUnaryFact();
+            $op = $this->expect("^");
+            if ($op === false) {
+                return $left;
+            }
+            $this->next();
+            $op = $filt[0];
+            $right = $this->parseNumPower();
+            return array(
+                'type' => 'BinaryOp',
+                'op' => $op,
+                'args' => array($left, $right),
+            );
+        }
+        function parseUnaryFact() {
+            $arg = $this->parseUnaryPercent();
+            $op = $this->expect("%");
+            if ($op === false) {
+                return $arg;
+            }
+            $this->next();
+            return array(
+                'type' => 'UnaryOp',
+                'op' => $op,
+                'args' => array($arg),
+            );
+        }
+        function parseUnaryPercent() {
+            $arg = $this->parseUnaryMinus();
+            $op = $this->expect("%");
+            if ($op === false) {
+                return $arg;
+            }
+            $this->next();
+            return array(
+                'type' => 'UnaryOp',
+                'op' => $op,
+                'args' => array($arg),
+            );
+        }
+        function parseUnaryMinus() {
+            $op = $this->expect("-");
+            if ($op === false) {
+                return $this->parseLiteral();
+            }
+            $this->next();
+            $arg = $this->parseLiteral();
+            return array(
+                'type' => 'UnaryOp',
+                'op' => $op,
+                'args' => array($arg),
+            );
+        }
+        function parseLiteral() {
+            return (
+//                $this->parseFuncCall() ||
+//                $this->parseBracketted() ||
+                $this->parseNumber()
+//                $this->parseString() ||
+//                $this->parseConstant()
+            );
+        }
+        function parseNumber() {
+            $num = $this->expect("NUMBER");
+            if ($num === false) {
+                return false;
+            }
+            $this->next();
+            return array(
+                'type' => 'Literal',
+                'args' => array($num),
             );
         }
     }
