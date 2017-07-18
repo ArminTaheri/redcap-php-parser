@@ -61,7 +61,7 @@
             $this->next();
             $right = $this->parseBoolTerm();
             return array(
-                'type' => 'BinaryOp',
+                'tag' => 'BinaryOp',
                 'op' => $op,
                 'args' => array($left, $right),
             );
@@ -74,7 +74,7 @@
             $this->next();
             $arg = $this->parseBoolComp();
             return array(
-                'type' => 'UnaryOp',
+                'tag' => 'UnaryOp',
                 'op' => $op,
                 'args' => array($arg),
             );
@@ -92,7 +92,7 @@
             }
             $right = $this->parseBoolComp();
             return array(
-                'type' => 'BinaryOp',
+                'tag' => 'BinaryOp',
                 'op' => $op,
                 'args' => array($left, $right),
             );
@@ -107,7 +107,7 @@
             $op = $filt[0];
             $right = $this->parseNumTerm();
             return array(
-                'type' => 'BinaryOp',
+                'tag' => 'BinaryOp',
                 'op' => $op,
                 'args' => array($left, $right),
             );
@@ -122,7 +122,7 @@
             $op = $filt[0];
             $right = $this->parseNumFactor();
             return array(
-                'type' => 'BinaryOp',
+                'tag' => 'BinaryOp',
                 'op' => $op,
                 'args' => array($left, $right),
             );
@@ -137,7 +137,7 @@
             $op = $filt[0];
             $right = $this->parseNumPower();
             return array(
-                'type' => 'BinaryOp',
+                'tag' => 'BinaryOp',
                 'op' => $op,
                 'args' => array($left, $right),
             );
@@ -150,7 +150,7 @@
             }
             $this->next();
             return array(
-                'type' => 'UnaryOp',
+                'tag' => 'UnaryOp',
                 'op' => $op,
                 'args' => array($arg),
             );
@@ -163,7 +163,7 @@
             }
             $this->next();
             return array(
-                'type' => 'UnaryOp',
+                'tag' => 'UnaryOp',
                 'op' => $op,
                 'args' => array($arg),
             );
@@ -176,7 +176,7 @@
             $this->next();
             $arg = $this->parseLiteral();
             return array(
-                'type' => 'UnaryOp',
+                'tag' => 'UnaryOp',
                 'op' => $op,
                 'args' => array($arg),
             );
@@ -197,7 +197,7 @@
             }
             $this->next();
             return array(
-                'type' => 'Literal',
+                'tag' => 'Literal',
                 'args' => array($num),
             );
         }
