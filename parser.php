@@ -16,12 +16,10 @@
         private $expression;
         private $tokens;
         private $offset;
-        private $backtrack;
         function __construct($expression) {
             $this->expression = $expression;
             $this->tokens = Lexer::lex($expression);
             $this->offset = 0;
-            $this->backtrack = $this->offset;
         }
         function parse() {
             $ast = $this->parseBoolTerm();
@@ -36,11 +34,11 @@
                 throw new Exception("Invalid expression ending: " . $this->expression);
             }
         }
-        function setBacktrack() {
-          $this->backtrack = $this->offset;
+        function getBacktrack() {
+          return $this->offset;
         }
-        function backtrack() {
-          $this->offset = $this->backtrack;
+        function backtrack($backtrack) {
+          $this->offset = $backtrack;
         }
         function expect($token) {
             if ($this->offset >= count($this->tokens)) {
@@ -53,6 +51,7 @@
             return $currentTok['match'];
         }
         function parseBoolTerm() {
+            $bt = $this->getBacktrack();
             $left = $this->parseUnaryBool();
             $op = $this->expect('and') || $this->expect('or');
             if ($op === false) {
@@ -60,6 +59,10 @@
             }
             $this->next();
             $right = $this->parseBoolTerm();
+            if ($right === false) {
+                $this->backtrack($bt);
+                return false;
+            }
             return array(
                 'tag' => 'BinaryOp',
                 'op' => $op,
@@ -67,12 +70,17 @@
             );
         }
         function parseUnaryBool() {
+            $bt = $this->getBacktrack();
             $op = $this->expect("not");
             if ($op === false) {
                 return $this->parseBoolComp();
             }
             $this->next();
             $arg = $this->parseBoolComp();
+            if ($arg === false) {
+                $this->backtrack($bt);
+                return false;
+            }
             return array(
                 'tag' => 'UnaryOp',
                 'op' => $op,
@@ -80,8 +88,9 @@
             );
         }
         function parseBoolComp() {
+            $bt = $this->getBacktrack();
             $left = $this->parseNumTerm();
-            $filt = array_filter(["=", "<", ">", "<>", "<=", ">="], array($this, 'expect'));
+            $filt = array_values(array_filter(["=", "<", ">", "<>", "<=", ">="], array($this, 'expect')));
             if (count($filt) === 0) {
                 return $left;
             }
@@ -91,6 +100,10 @@
                 return $left;
             }
             $right = $this->parseBoolComp();
+            if ($right === false) {
+                $this->backtrack($bt);
+                return false;
+            }
             return array(
                 'tag' => 'BinaryOp',
                 'op' => $op,
@@ -98,14 +111,19 @@
             );
         }
         function parseNumTerm() {
+            $bt = $this->getBacktrack();
             $left = $this->parseNumFactor();
-            $filt = array_filter(["+", "-"], array($this, 'expect'));
+            $filt = array_values(array_filter(["+", "-"], array($this, 'expect')));
             if (count($filt) === 0) {
                 return $left;
             }
             $this->next();
             $op = $filt[0];
             $right = $this->parseNumTerm();
+            if ($right === false) {
+                $this->backtrack($bt);
+                return false;
+            }
             return array(
                 'tag' => 'BinaryOp',
                 'op' => $op,
@@ -113,14 +131,19 @@
             );
         }
         function parseNumFactor() {
+            $bt = $this->getBacktrack();
             $left = $this->parseNumPower();
-            $filt = array_filter(["*", "/"], array($this, 'expect'));
+            $filt = array_values(array_filter(["*", "/"], array($this, 'expect')));
             if (count($filt) === 0) {
                 return $left;
             }
             $this->next();
             $op = $filt[0];
             $right = $this->parseNumFactor();
+            if ($right === false) {
+                $this->backtrack($bt);
+                return false;
+            }
             return array(
                 'tag' => 'BinaryOp',
                 'op' => $op,
@@ -128,14 +151,18 @@
             );
         }
         function parseNumPower() {
+            $bt = $this->getBacktrack();
             $left = $this->parseUnaryFact();
             $op = $this->expect("^");
             if ($op === false) {
                 return $left;
-            }
+                }
             $this->next();
-            $op = $filt[0];
             $right = $this->parseNumPower();
+            if ($right === false) {
+                $this->backtrack($bt);
+                return false;
+            }
             return array(
                 'tag' => 'BinaryOp',
                 'op' => $op,
@@ -171,24 +198,43 @@
         function parseUnaryMinus() {
             $op = $this->expect("-");
             if ($op === false) {
-                return $this->parseLiteral();
+                return $this->parseTerminal();
             }
             $this->next();
-            $arg = $this->parseLiteral();
+            $arg = $this->parseTerminal();
             return array(
                 'tag' => 'UnaryOp',
                 'op' => $op,
                 'args' => array($arg),
             );
         }
-        function parseLiteral() {
+        function parseTerminal() {
             return (
-//                $this->parseFuncCall() ||
-//                $this->parseBracketted() ||
-                $this->parseNumber()
-//                $this->parseString() ||
-//                $this->parseConstant()
+                $this->parseFuncCall() ?:
+                $this->parseVariable() ?:
+                $this->parseNested() ?:
+                $this->parseNumber() ?:
+                $this->parseString() ?:
+                $this->parseConstant()
             );
+        }
+        function parseNested() {
+            $bt = $this->getBacktrack();
+            if ($this->expect("(") === false) {
+                return false;
+            }
+            $this->next();
+            $expr = $this->parseBoolTerm();
+            if ($expr === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            if ($this->expect(")") === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            $this->next();
+            return $expr;
         }
         function parseNumber() {
             $num = $this->expect("NUMBER");
@@ -200,6 +246,137 @@
                 'tag' => 'Literal',
                 'args' => array($num),
             );
+        }
+        function parseString() {
+            $str = $this->expect("STRING") || $this->expect("ESTRING");
+            if ($str === false) {
+                return false;
+            }
+            $this->next();
+            return array(
+                'tag' => 'Literal',
+                'args' => array($str),
+            );
+        }
+        function parseConstant() {
+            $filt = array_values(array_filter(["E", "PI"], array($this, 'expect')));
+            if (count($filt) === 0) {
+                return false;
+            }
+            $this->next();
+            return array(
+                'tag' => 'Constant',
+                'args' => array($filt[0]),
+            );
+        }
+        function parseFuncCall() {
+            $bt = $this->getBacktrack();
+            $func = $this->expect("VARIABLE");
+            if ($func === false) {
+                return false;
+            }
+            $this->next();
+            if ($this->expect("(") === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            $this->next();
+            $args = $this->parseArguments();
+            if ($this->expect(")") === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            $this->next();
+            return array(
+                'tag' => 'FuncApplication',
+                'args' => array($func, $args),
+            );
+        }
+        function parseArguments() {
+            $bt = $this->getBacktrack();
+            $arg = $this->parseBoolTerm();
+            if ($arg === false) {
+                return [];
+            }
+            if ($this->expect(",") === false) {
+                return [$arg];
+            }
+            $this->next();
+            $nextArgs = $this->parseArguments();
+            if ($nextArgs === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            return array_merge([$arg], $nextArgs);;
+        }
+        function parseVariable() {
+            $sym = $this->parseVarSymbol();
+            if ($sym === false) {
+                return false;
+            }
+            $var = $sym['var'];
+            $accessors = isset($sym['num']) ? [$sym['num']] : [];
+            while ($access = $this->parseVarSymbol()) {
+                if (isset($access['var'])) {
+                    $accessors[] = $access['var'];
+                }
+                if (isset($access['num'])) {
+                    $accessors[] = $access['num'];
+                }
+            };
+            if (count($accessors) === 0) {
+                return array(
+                    'tag' => 'Variable',
+                    'args' => array($var),
+                );
+            }
+            return array(
+                'tag' => 'NestedVariable',
+                'args' => array($var, $accessors),
+            );
+        }
+        function parseVarSymbol() {
+            $bt = $this->getBacktrack();
+            if ($this->expect("[") === false) {
+                return false;
+            }
+            $this->next();
+            $var = $this->expect("VARIABLE");
+            if ($var === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            $this->next();
+            $num = $this->parseNestedNumber();
+            if ($this->expect("]") === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            $this->next();
+            if ($num === false) {
+                return array('var' => $var);
+            }
+            return array('var' => $var, 'num' => $num);
+        }
+        function parseNestedNumber() {
+            $bt = $this->getBacktrack();
+            if ($this->expect("(") === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            $this->next();
+            $num = $this->expect("NUMBER");
+            if ($num === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            $this->next();
+            if ($this->expect(")") === false) {
+                $this->backtrack($bt);
+                return false;
+            }
+            $this->next();
+            return $num;
         }
     }
 ?>
