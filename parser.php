@@ -26,6 +26,9 @@
             if ($ast === false) {
                 throw new Exception("Cannot parse expression.");
             }
+            if ($this->offset < count($this->tokens)) {
+                throw new Exception("Unexpected token(s) after: " . substr($this->expression, $this->offset));
+            }
             return $ast;
         }
         function next() {
