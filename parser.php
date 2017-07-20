@@ -45,11 +45,12 @@
         function parseBoolTerm() {
             $bt = $this->getBacktrack();
             $left = $this->parseUnaryBool();
-            $op = $this->expect('and') || $this->expect('or');
-            if ($op === false) {
+            $filt = array_values(array_filter(["and", "or"], array($this, 'expect')));
+            if (count($filt) === 0) {
                 return $left;
             }
             $this->next();
+            $op = $filt[0];
             $right = $this->parseBoolTerm();
             if ($right === false) {
                 $this->backtrack($bt);
@@ -88,9 +89,6 @@
             }
             $this->next();
             $op = $filt[0];
-            if ($op === false) {
-                return $left;
-            }
             $right = $this->parseBoolComp();
             if ($right === false) {
                 $this->backtrack($bt);
