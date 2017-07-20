@@ -1,17 +1,6 @@
 <?php
     include "lexer.php";
 
-    $opPrecs = array(
-        array("left", 2, "and", "or"),
-        array("left", 2, "=", "<", ">", "<>", "<=", ">="),
-        array("left", 2, "+", "-"),
-        array("left", 2, "*", "/"),
-        array("left", 2, "^"),
-        array("right", 1, "not"),
-        array("left", 1, "!"),
-        array("left", 1, "%"),
-        array("right", 1, "-"),
-    );
     class Parser {
         private $expression;
         private $tokens;
@@ -246,18 +235,26 @@
             }
             $this->next();
             return array(
-                'tag' => 'Literal',
+                'tag' => 'Number',
                 'args' => array($num),
             );
         }
         function parseString() {
-            $str = $this->expect("STRING") || $this->expect("ESTRING");
+            $str = $this->expect("STRING") ;
             if ($str === false) {
-                return false;
+                $str = $this->expect("ESTRING");
+                if ($str === false) {
+                    return false;
+                }
+                $this->next();
+                return array(
+                    'tag' => 'EString',
+                    'args' => array($str),
+                );
             }
             $this->next();
             return array(
-                'tag' => 'Literal',
+                'tag' => 'String',
                 'args' => array($str),
             );
         }

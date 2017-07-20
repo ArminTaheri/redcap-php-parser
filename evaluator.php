@@ -8,11 +8,18 @@
             $evalarg = function($a) use ($scope) {
                 return static::evalAST($a, $scope);
             };
+            $constants = array(
+              'E' => exp(1),
+              'PI' => pi(),
+            );
             switch($tree['tag']) {
                 case 'String':
+                case 'EString':
                     return substr((string)$tree['args'][0],1,-1);
-                case 'Literal':
-                    return $tree['args'][0];
+                case 'Number':
+                    return floatval($tree['args'][0]);
+                case 'Constant':
+                    return $constants[$tree['args'][0]];
                 case 'Variable':
                     if (isset($scope[$tree['args'][0]])) {
                         return $scope[$tree['args'][0]];
@@ -64,5 +71,5 @@
     // For testing:
     // php evaluator.php 'eq([x][z(0)], 33)'
 
-    // var_dump(Evaluator::eval($argv[1], array('x' => array('z' => array(33)))));
+    var_dump(Evaluator::eval($argv[1], array('x' => array('z' => array(33)))));
 ?>
