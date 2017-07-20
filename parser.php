@@ -259,7 +259,7 @@
             );
         }
         function parseConstant() {
-            $filt = array_values(array_filter(["E", "PI"], array($this, 'expect')));
+            $filt = array_values(array_filter(["false", "true", "null", "E", "PI"], array($this, 'expect')));
             if (count($filt) === 0) {
                 return false;
             }

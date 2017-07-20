@@ -11,6 +11,9 @@
             $constants = array(
               'E' => exp(1),
               'PI' => pi(),
+              'false' => false,
+              'true' => true,
+              'null' => null,
             );
             switch($tree['tag']) {
                 case 'String':
